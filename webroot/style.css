@@ -1,4 +1,6 @@
 .button {
+    display: block;
+    width: 100%;
     border: none;
     color: white;
     padding: 15px 32px;
