@@ -5,27 +5,19 @@ import time
 from machine import Pin
 import uasyncio as asyncio
 from secrets import secrets
+from netconfig import netconfig
 from pinnames import pinnames
 
-# Define pins for our relay
-RELAY_1 = Pin(21, Pin.OUT, value=0)
-RELAY_2 = Pin(20, Pin.OUT, value=0)
-RELAY_3 = Pin(19, Pin.OUT, value=0)
-RELAY_4 = Pin(18, Pin.OUT, value=0)
-RELAY_5 = Pin(17, Pin.OUT, value=0)
-RELAY_6 = Pin(16, Pin.OUT, value=0)
-RELAY_7 = Pin(15, Pin.OUT, value=0)
-RELAY_8 = Pin(14, Pin.OUT, value=0)
+# relay pins
+relay_pins = list((Pin(21, Pin.OUT, value=0), Pin(20, Pin.OUT, value=0), Pin(19, Pin.OUT, value=0), Pin(18, Pin.OUT, value=0), Pin(17, Pin.OUT, value=0), Pin(16, Pin.OUT, value=0), Pin(15, Pin.OUT, value=0), Pin(14, Pin.OUT, value=0)))
 
-relay_1_state = 0
-relay_2_state = 0
-relay_3_state = 0
-relay_4_state = 0
-relay_5_state = 0
-relay_6_state = 0
-relay_7_state = 0
-relay_8_state = 0
+# initial relay states array storage
+relay_state = list((0,0,0,0,0,0,0,0))
 
+# default relay names - to be populated when started
+relay_names = list(("", "", "", "", "", "", "", ""))
+
+# heartbeat indicator
 onboard = Pin("LED", Pin.OUT, value=0)
 
 ssid = secrets["ssid"] 
@@ -34,6 +26,11 @@ wlan = network.WLAN(network.STA_IF)
 
 def connect_to_network():
     wlan.active(True)
+    
+    # use dhcp or a static address
+    if netconfig["dhcp"] == False:
+        wlan.ifconfig((netconfig["ip"], netconfig["subnet"], netconfig["gateway"], netconfig["dns"]))
+        
     wlan.config(pm = 0xa11140) # Disable power-save mode
     wlan.connect(ssid, password)
     
@@ -56,18 +53,20 @@ def connect_to_network():
         
 def build_button_controls(response):
     
-    global relay_1_state
+    global relay_names
     
     buttonTemplate = "<a href='/RELAY'><button class='button buttonSTATE'>Turn NAME STATE</button></a>"
     html = ""
-    if pinnames["1"] != "":
-        tempButton = buttonTemplate.replace("RELAY", "R1")
-        tempButton = tempButton.replace("NAME", pinnames["1"])
-        if relay_1_state == 1:
-            html = html + tempButton.replace("STATE", "Off")
-        else:
-            html = html + tempButton.replace("STATE", "On")
-    
+            
+    for i in range(len(relay_names)):
+        if relay_names[i-1] != "":
+            tempButton = buttonTemplate.replace("RELAY", "R" + str(i))
+            tempButton = tempButton.replace("NAME", relay_names[i-1])
+            if relay_state[i-1] == 1:
+                html = html + tempButton.replace("STATE", "Off")
+            else:
+                html = html + tempButton.replace("STATE", "On")
+   
     # inject the html buttons
     return response.replace("CMDS", html) 
 
@@ -90,83 +89,17 @@ async def serve_client(reader, writer):
     request = str(request_line)
     
     # items to look our for on our request
-    RELAY_1_COMMAND = request.find('/R1')
-    
-    
-    
-    RELAY_1_ON_COMMAND = request.find('/R1ON')
-    RELAY_1_OFF_COMMAND = request.find('/R1OFF')
-    RELAY_2_ON_COMMAND = request.find('/R2ON')
-    RELAY_2_OFF_COMMAND = request.find('/R2OFF')
-    RELAY_3_ON_COMMAND = request.find('/R3ON')
-    RELAY_3_OFF_COMMAND = request.find('/R3OFF')
-    RELAY_4_ON_COMMAND = request.find('/R4ON')
-    RELAY_4_OFF_COMMAND = request.find('/R4OFF')
-    RELAY_5_ON_COMMAND = request.find('/R5ON')
-    RELAY_5_OFF_COMMAND = request.find('/R5OFF')
-    RELAY_6_ON_COMMAND = request.find('/R6ON')
-    RELAY_6_OFF_COMMAND = request.find('/R6OFF')
-    RELAY_7_ON_COMMAND = request.find('/R7ON')
-    RELAY_7_OFF_COMMAND = request.find('/R7OFF')
-    RELAY_8_ON_COMMAND = request.find('/R8ON')
-    RELAY_8_OFF_COMMAND = request.find('/R8OFF')
+    relay_commands = list((request.find("/R1"), request.find("/R2"), request.find("/R3"), request.find("/R4"), request.find("/R5"), request.find("/R6"), request.find("/R7"), request.find("/R8")))
     css = request.find('.css')
     
-    global relay_1_state
-    
-    if RELAY_1_COMMAND == 6:
-        relay_1_state = invert_state(relay_1_state)
-        RELAY_1.value(relay_1_state)
-    
-    if RELAY_1_ON_COMMAND == 6:
-        relay_1_state = 1
-        RELAY_1.value(relay_1_state)
+    global relay_state, relay_pins, relay_names
 
-    if RELAY_1_OFF_COMMAND == 6:
-        RELAY_1.value(0)
-
-    if RELAY_2_ON_COMMAND == 6:
-        RELAY_2.value(1)
-
-    if RELAY_2_OFF_COMMAND == 6:
-        RELAY_2.value(0)
-
-    if RELAY_3_ON_COMMAND == 6:
-        RELAY_3.value(1)
-
-    if RELAY_3_OFF_COMMAND == 6:
-        RELAY_3.value(0)
-
-    if RELAY_4_ON_COMMAND == 6:
-        RELAY_4.value(1)
-
-    if RELAY_4_OFF_COMMAND == 6:
-        RELAY_4.value(0)
-
-    if RELAY_5_ON_COMMAND == 6:
-        RELAY_5.value(1)
-
-    if RELAY_5_OFF_COMMAND == 6:
-        RELAY_5.value(0)
-
-    if RELAY_6_ON_COMMAND == 6:
-        RELAY_6.value(1)
-
-    if RELAY_6_OFF_COMMAND == 6:
-        RELAY_6.value(0)
-
-    if RELAY_7_ON_COMMAND == 6:
-        RELAY_7.value(1)
-        
-    if RELAY_7_OFF_COMMAND == 6:
-        RELAY_7.value(0)
-    
-    if RELAY_8_ON_COMMAND == 6:
-        RELAY_8.value(1)
-
-    if RELAY_8_OFF_COMMAND == 6:
-        RELAY_8.value(0)
-   
+    # loop though our command and work on the relay
+    for i in range(len(relay_names)):
+        if relay_commands[i-1] == 6:
+            relay_state[i-1] = invert_state(relay_state[i-1])
+            relay_pins[i-1].value(relay_state[i-1])
+      
     # handle if a CSS request
     if css > 0:
         # 'GET /webroot/style.css HTTP/1.1\r\n'
@@ -195,8 +128,34 @@ async def serve_client(reader, writer):
     print("Client disconnected")
     
 async def main():
-    global relay_1_state
-    
+
+    # setup active relays
+    global relay_names
+    if pinnames["1"] != "":
+        relay_names[0] = pinnames["1"]
+        
+    if pinnames["2"] != "":
+        relay_names[1] = pinnames["2"]
+
+    if pinnames["3"] != "":
+        relay_names[2] = pinnames["3"]
+
+    if pinnames["4"] != "":
+        relay_names[3] = pinnames["4"]
+
+    if pinnames["5"] != "":
+        relay_names[4] = pinnames["5"]
+        
+    if pinnames["6"] != "":
+        relay_names[5] = pinnames["6"]
+
+    if pinnames["7"] != "":
+        relay_names[6] = pinnames["7"]
+
+    if pinnames["8"] != "":
+        relay_names[7] = pinnames["8"]
+
+
     print('Connecting to Network...')
     connect_to_network()
     
@@ -205,10 +164,6 @@ async def main():
     while True:
         onboard.on()
         print("heartbeat")
-        if relay_1_state == 0:
-            print("off")
-        else:
-            print("on")
         await asyncio.sleep(0.25)
         onboard.off()
         await asyncio.sleep(5)
