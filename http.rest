@@ -13,11 +13,13 @@ POST http://192.168.30.6/R3
 ### api - toggle
 
 POST http://192.168.30.6/api/toggle/R1
+Authorization: Basic user:pass
 
 ### api - enable
 
-POST http://192.168.30.6/api/enable/R1
+POST http://192.168.30.6/api/enable/R3
 
 ### api - disable
 
 POST http://192.168.30.6/api/disable/R1
+Authorization: Basic dXNlcjpwYXNz

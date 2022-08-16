@@ -23,6 +23,7 @@ onboard = Pin("LED", Pin.OUT, value=0)
 ssid = secrets["ssid"] 
 password = secrets["pwd"] 
 wlan = network.WLAN(network.STA_IF)
+base64Encoded = netconfig["baseEncoding"]
 
 def connect_to_network():
     wlan.active(True)
@@ -59,8 +60,7 @@ def build_button_controls(response):
     buttonTemplate = """<form action="" method="post">
                             <input type="submit" name="RELAY" value="RELAY" class="button buttonSTATE" />
                         </form>"""
-    
-    
+        
     html = ""
             
     for i in range(len(relay_names)):
@@ -83,12 +83,22 @@ def invert_state(currentstate):
 
 async def serve_client(reader, writer):
     print("Client connected")
-    request_line = await reader.readline()
-    request = str(request_line)
-    
+    line = await reader.readline()
+    request_line = line;
+
     # We are not interested in HTTP request headers, skip them
-    while await reader.readline() != b"\r\n":
-        pass   
+    #while await reader.readline() != b"\r\n":
+    #    #request_line += reader.readline()
+    #    pass
+
+    # read all the headers - as we want to check for basic auth (api)
+    while line != b"\r\n":
+        line = await reader.readline()
+        request_line += line
+        pass
+
+    request = str(request_line)
+    print(str(request))
     
     # items to look our for on our request
     relay_commands = list((request.find("R1"), request.find("R2"), request.find("R3"), request.find("R4"), request.find("R5"), request.find("R6"), request.find("R7"), request.find("R8")))
@@ -127,43 +137,48 @@ async def serve_client(reader, writer):
     elif ispost:
         
         print("POST Request:", request)
-        print(str(request.find("R1")))
-        # what are we doing
         
-        # toggle
-        if request.find("/api/toggle") > 0:
-            # loop though our command and toggle relay
-            for i in range(len(relay_names)):
-                if relay_commands[i-1] == 19:
-                    relay_state[i-1] = invert_state(relay_state[i-1])
-                    relay_pins[i-1].value(relay_state[i-1])
-                    break
+        # authorised?
+        if request.find(base64Encoded) > 0:
             
-            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+            # what are we doing
             
-        elif request.find("/api/enable") > 0:
-            # loop though our command and enable relay
-            for i in range(len(relay_names)):
-                if relay_commands[i-1] == 19:
-                    relay_state[i-1] = 1
-                    relay_pins[i-1].value(relay_state[i-1])
-                    break
-                    
-            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK                    
-                    
-        elif request.find("/api/disable") > 0:
-            # loop though our command and disable relay
-            for i in range(len(relay_names)):
-                if relay_commands[i-1] == 20:
-                    relay_state[i-1] = 0
-                    relay_pins[i-1].value(relay_state[i-1])
-                    break
-        
-            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
-        
+            # toggle
+            if request.find("/api/toggle") > 0:
+                # loop though our command and toggle relay
+                for i in range(len(relay_names)):
+                    if relay_commands[i-1] == 19:
+                        relay_state[i-1] = invert_state(relay_state[i-1])
+                        relay_pins[i-1].value(relay_state[i-1])
+                        break
+                
+                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+                
+            elif request.find("/api/enable") > 0:
+                # loop though our command and enable relay
+                for i in range(len(relay_names)):
+                    if relay_commands[i-1] == 19:
+                        relay_state[i-1] = 1
+                        relay_pins[i-1].value(relay_state[i-1])
+                        break
+                        
+                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK                    
+                        
+            elif request.find("/api/disable") > 0:
+                # loop though our command and disable relay
+                for i in range(len(relay_names)):
+                    if relay_commands[i-1] == 20:
+                        relay_state[i-1] = 0
+                        relay_pins[i-1].value(relay_state[i-1])
+                        break
+            
+                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+            
+            else:
+                writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
         else:
-            writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
-        
+            # not authorised...
+            writer.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="Secure"\r\nContent-Type: text/html\r\n\r\n') # Bad Request
 
     if response != "":
         writer.write(response)
