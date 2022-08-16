@@ -130,14 +130,22 @@ def handle_get(request, writer):
         
 def handle_post(request, reader, writer):
     
-    global relay_state, relay_pins, relay_names, response
+    global relay_state, relay_pins, relay_names, response, payload
     
     # authorised?
     if check_authorised(request, writer):
         # what are we doing
         if request.find("/api/status") > 0: # setting the status using json, then return the pin states
 
-            # TODO
+            # get our payload as a json object
+            relays = json.loads(payload)
+            
+            for relay in relays:
+                for i in range(len(relay_names)):
+                    if relay["Relay"] == i:
+                        relay_state[i-1] = relay["State"]
+                        relay_pins[i-1].value(relay_state[i-1])
+                        break;
             
             # get our state as object and add to the response
             pinstate_asobject()
@@ -194,20 +202,16 @@ async def serve_client(reader, writer):
     
     global response, relay_commands, payload
     
-    #s = await reader.read(2048)
-    #print(s)
-    #message = json.loads(s.decode())
-    #print(message)
-    
     print("Client connected")
     line = await reader.read(2048)
+    blank = b'';
+    line = line.replace(b'\r\n',blank) # remove an newlines
 
     request = str(line)
-    print(str(request))
     
     # try and get any content..
-    closePos = request.find("Connection: close") + len('Connection: close') + 8
-    payload = request[closePos:]
+    closePos = request.find("Connection: close") + len('Connection: close')
+    payload = request[closePos:len(str(request))-1]
     
     # items to look our for on our request
     relay_commands = list((request.find("RELAY1"), request.find("RELAY2"), request.find("RELAY3"), request.find("RELAY4"), request.find("RELAY5"), request.find("RELAY6"), request.find("RELAY7"), request.find("RELAY8")))

@@ -12,19 +12,9 @@ Authorization: Basic user:pass
 
 [
   {
-    "Relay": 1,
-    "Name": "Pump",
-    "State": 1
-  },
-  {
     "Relay": 2,
-    "Name": "UV Light",
+    "Name": "Pump",
     "State": 0
-  },
-  {
-    "Relay": 3,
-    "Name": "Skimmer",
-    "State": 1
   }
 ]
 
