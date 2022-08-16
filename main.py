@@ -8,13 +8,13 @@ from secrets import secrets
 from netconfig import netconfig
 from pinnames import pinnames
 
-# relay pins
+# relay pins [R1 .. R8]
 relay_pins = list((Pin(21, Pin.OUT, value=0), Pin(20, Pin.OUT, value=0), Pin(19, Pin.OUT, value=0), Pin(18, Pin.OUT, value=0), Pin(17, Pin.OUT, value=0), Pin(16, Pin.OUT, value=0), Pin(15, Pin.OUT, value=0), Pin(14, Pin.OUT, value=0)))
 
-# initial relay states array storage
+# initial relay states array storage  [R1 .. R8]
 relay_state = list((0,0,0,0,0,0,0,0))
 
-# default relay names - to be populated when started
+# default relay names - to be populated when started  [R1 .. R8]
 relay_names = list(("", "", "", "", "", "", "", ""))
 
 # heartbeat indicator
@@ -55,7 +55,12 @@ def build_button_controls(response):
     
     global relay_names
     
-    buttonTemplate = "<a href='/RELAY'><button class='button buttonSTATE'>Turn NAME STATE</button></a>"
+    #buttonTemplate = "<a href='/RELAY'><button class='button buttonSTATE'>Turn NAME STATE</button></a>"
+    buttonTemplate = """<form action="" method="post">
+                            <input type="submit" name="RELAY" value="RELAY" class="button buttonSTATE" />
+                        </form>"""
+    
+    
     html = ""
             
     for i in range(len(relay_names)):
@@ -79,49 +84,89 @@ def invert_state(currentstate):
 async def serve_client(reader, writer):
     print("Client connected")
     request_line = await reader.readline()
-    print("Request:", request_line)
+    request = str(request_line)
     
     # We are not interested in HTTP request headers, skip them
     while await reader.readline() != b"\r\n":
         pass   
     
-    # our request
-    request = str(request_line)
-    
     # items to look our for on our request
-    relay_commands = list((request.find("/R1"), request.find("/R2"), request.find("/R3"), request.find("/R4"), request.find("/R5"), request.find("/R6"), request.find("/R7"), request.find("/R8")))
-    css = request.find('.css')
+    relay_commands = list((request.find("R1"), request.find("R2"), request.find("R3"), request.find("R4"), request.find("R5"), request.find("R6"), request.find("R7"), request.find("R8")))
+    css = request.find('.css') # for handling css files
     
+    # what type of action are we doing
+    isget = request.find("GET ") > 0;
+    ispost = request.find("POST ") > 0;
+
     global relay_state, relay_pins, relay_names
+    
+    # clear response
+    response = ""
+    if isget:
+        
+        print("GET Request:", request)        
+        
+        # handle if a CSS request
+        if css > 0:
+            requestedfile = request[6:css+4]
+            f = open(requestedfile)
+            response = f.read()
+            f.close()
+            
+            writer.write('HTTP/1.1 200 OK\r\nContent-type: text/css\r\n\r\n')
+        else: # else standard html
+            requestedfile = "webroot/index.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
+            f = open(requestedfile)
+            response = f.read()
+            f.close()
+            
+            # need to add our button commands here.
+            response = build_button_controls(response)
+            writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
 
-    # loop though our command and work on the relay
-    for i in range(len(relay_names)):
-        if relay_commands[i-1] == 6:
-            relay_state[i-1] = invert_state(relay_state[i-1])
-            relay_pins[i-1].value(relay_state[i-1])
-      
-    # handle if a CSS request
-    if css > 0:
-        # 'GET /webroot/style.css HTTP/1.1\r\n'
-        print("CSS Requested")
+    elif ispost:
         
-        requestedfile = request[6:css+4]
-        f = open(requestedfile)
-        response = f.read()
-        f.close()
+        print("POST Request:", request)
+        print(str(request.find("R1")))
+        # what are we doing
         
-        writer.write('HTTP/1.0 200 OK\r\nContent-type: text/css\r\n\r\n')
-    else: # else standard html
+        # toggle
+        if request.find("/api/toggle") > 0:
+            # loop though our command and toggle relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 19:
+                    relay_state[i-1] = invert_state(relay_state[i-1])
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
+            
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+            
+        elif request.find("/api/enable") > 0:
+            # loop though our command and enable relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 19:
+                    relay_state[i-1] = 1
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
+                    
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK                    
+                    
+        elif request.find("/api/disable") > 0:
+            # loop though our command and disable relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 20:
+                    relay_state[i-1] = 0
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
         
-        requestedfile = "webroot/index.htm"
-        f = open(requestedfile)
-        response = f.read()
-        f.close()
-        # need to add our button commands here.
-        response = build_button_controls(response)
-        writer.write('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+        
+        else:
+            writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
+        
 
-    writer.write(response)
+    if response != "":
+        writer.write(response)
     
     await writer.drain()
     await writer.wait_closed()
@@ -163,7 +208,7 @@ async def main():
     asyncio.create_task(asyncio.start_server(serve_client, "0.0.0.0", 80))
     while True:
         onboard.on()
-        print("heartbeat")
+        # print("heartbeat")
         await asyncio.sleep(0.25)
         onboard.off()
         await asyncio.sleep(5)

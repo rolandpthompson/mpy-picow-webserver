@@ -1,0 +1,23 @@
+GET http://192.168.30.6
+
+
+### R1 Toggle
+POST http://192.168.30.6/R1
+
+### R2 Toggle
+POST http://192.168.30.6/R2
+
+### R3 Toggle
+POST http://192.168.30.6/R3
+
+### api - toggle
+
+POST http://192.168.30.6/api/toggle/R1
+
+### api - enable
+
+POST http://192.168.30.6/api/enable/R1
+
+### api - disable
+
+POST http://192.168.30.6/api/disable/R1

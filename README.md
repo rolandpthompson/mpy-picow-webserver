@@ -25,3 +25,11 @@ secrets = {
         "ssid": "your wifi ssid",
         "pwd": "your wifi password
     }
+    
+* Endpoints
+
+/api/toggle/[R1..R8]
+
+/api/enable/[R1..R8]
+
+/api/disable/[R1..R8]
