@@ -30,6 +30,7 @@ password = secrets["pwd"]
 wlan = network.WLAN(network.STA_IF)
 base64Encoded = netconfig["baseEncoding"]
 response = ""
+payload = ""
 
 def connect_to_network():
     wlan.active(True)
@@ -99,8 +100,6 @@ def check_authorised(request, writer):
 def handle_get(request, writer):
 
     global relay_state, relay_pins, relay_names, response         
-            
-    print("GET Request: " + request)
     css = request.find('.css')
     
     # getting status (api)
@@ -135,21 +134,10 @@ def handle_post(request, reader, writer):
     
     # authorised?
     if check_authorised(request, writer):
-        
         # what are we doing
         if request.find("/api/status") > 0: # setting the status using json, then return the pin states
-            
-            # get the content
-#             line = await reader.readline()
-#             request_line = line
-# 
-#             # read all the headers - as we want to check for basic auth (api)
-#             while line != b"\r\n":
-#                 line = await reader.readline()
-#                 request_line += line
-#                 pass
-#             
-#             print(str(request_line))
+
+            # TODO
             
             # get our state as object and add to the response
             pinstate_asobject()
@@ -204,20 +192,22 @@ def pinstate_asobject():
 
 async def serve_client(reader, writer):
     
-    global response, relay_commands
+    global response, relay_commands, payload
+    
+    #s = await reader.read(2048)
+    #print(s)
+    #message = json.loads(s.decode())
+    #print(message)
     
     print("Client connected")
-    line = await reader.readline()
-    request_line = line;
+    line = await reader.read(2048)
 
-    # read all the headers - as we want to check for basic auth (api)
-    while line != b"\r\n":
-        line = await reader.readline()
-        request_line += line
-        pass
-
-    request = str(request_line)
+    request = str(line)
     print(str(request))
+    
+    # try and get any content..
+    closePos = request.find("Connection: close") + len('Connection: close') + 8
+    payload = request[closePos:]
     
     # items to look our for on our request
     relay_commands = list((request.find("RELAY1"), request.find("RELAY2"), request.find("RELAY3"), request.find("RELAY4"), request.find("RELAY5"), request.find("RELAY6"), request.find("RELAY7"), request.find("RELAY8")))
@@ -233,7 +223,9 @@ async def serve_client(reader, writer):
     if isget:
         handle_get(request, writer)
     elif ispost:
-        handle_post(request, reader, writer)       
+        handle_post(request, reader, writer)
+    else:
+        writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
 
     if response != "":
         writer.write(response)

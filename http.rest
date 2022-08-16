@@ -10,11 +10,23 @@ POST http://192.168.30.6/api/status
 Content-Type: application/json
 Authorization: Basic user:pass
 
-{
-  "UV Light": false,
-  "Pump": true,
-  "Skimmer": false
-}
+[
+  {
+    "Relay": 1,
+    "Name": "Pump",
+    "State": 1
+  },
+  {
+    "Relay": 2,
+    "Name": "UV Light",
+    "State": 0
+  },
+  {
+    "Relay": 3,
+    "Name": "Skimmer",
+    "State": 1
+  }
+]
 
 
 ### api - toggle
