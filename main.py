@@ -20,7 +20,7 @@ relay_state = list((0,0,0,0,0,0,0,0))
 relay_names = list(("", "", "", "", "", "", "", ""))
 
 # relay commands
-relay_commands = list((0, 0, 0, 0, 0, 0, 0, 0))
+relay_commands = list((0,0,0,0,0,0,0,0))
 
 # heartbeat indicator
 onboard = Pin("LED", Pin.OUT, value=0)
@@ -88,6 +88,7 @@ def invert_state(currentstate):
         return 0
     
 def check_authorised(request, writer):
+    global base64Encoded
     if request.find(base64Encoded) > 0:
         return True
     else:
@@ -99,21 +100,14 @@ def handle_get(request, writer):
 
     global relay_state, relay_pins, relay_names, response         
             
-    print("GET Request:", request)
+    print("GET Request: " + request)
     css = request.find('.css')
     
     # getting status (api)
     if request.find("/api/status") > 0:
-        
         if check_authorised(request, writer):
-            
-            data = []
-            # loop though our relays to get the state
-            for i in range(len(relay_names)):
-                if relay_names[i-1] != "":
-                    data.append({'Relay': i, 'Name': relay_names[i-1],'State': relay_state[i-1]})
-            
-            response = json.dumps(data)
+            # get our state as object and add to the response
+            pinstate_asobject()
           
             writer.write('HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n') # OK
     
@@ -135,24 +129,30 @@ def handle_get(request, writer):
         response = build_button_controls(response)
         writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
         
-def handle_post(request, writer):
+def handle_post(request, reader, writer):
     
     global relay_state, relay_pins, relay_names, response
     
-    print("POST Request:", request)
-
     # authorised?
     if check_authorised(request, writer):
-
+        
         # what are we doing
         if request.find("/api/status") > 0: # setting the status using json, then return the pin states
-            data = {}
-            # loop though our relays to get the state
-            for i in range(len(relay_names)):
-                if relay_names[i-1] != "":
-                    data[relay_names[i-1]] = bool(relay_state[i-1])
-
-            response = json.dumps(data)
+            
+            # get the content
+#             line = await reader.readline()
+#             request_line = line
+# 
+#             # read all the headers - as we want to check for basic auth (api)
+#             while line != b"\r\n":
+#                 line = await reader.readline()
+#                 request_line += line
+#                 pass
+#             
+#             print(str(request_line))
+            
+            # get our state as object and add to the response
+            pinstate_asobject()
            
             writer.write('HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n') # OK
 
@@ -189,6 +189,19 @@ def handle_post(request, writer):
         else:
             writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
 
+    
+def pinstate_asobject():
+    global relay_state, relay_names, response
+    
+    # finally, get and return the state of the pins as json
+    data = []
+    # loop though our relays to get the state
+    for i in range(len(relay_names)):
+        if relay_names[i-1] != "":
+            data.append({'Relay': i, 'Name': relay_names[i-1],'State': relay_state[i-1]})
+    
+    response = json.dumps(data)
+
 async def serve_client(reader, writer):
     
     global response, relay_commands
@@ -220,7 +233,7 @@ async def serve_client(reader, writer):
     if isget:
         handle_get(request, writer)
     elif ispost:
-        handle_post(request, writer)       
+        handle_post(request, reader, writer)       
 
     if response != "":
         writer.write(response)
