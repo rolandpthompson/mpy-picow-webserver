@@ -29,13 +29,37 @@ secrets = {
 * API Endpoints
 
 Require base authentication
-**All** require POST
 
-/api/toggle/[R1..R8]
+[POST]
+/api/toggle/[RELAY1..RELAY8]
 
-/api/enable/[R1..R8]
+[POST]
+/api/enable/[RELAY1..RELAY8]
 
-/api/disable/[R1..R8]
+[POST]
+/api/disable/[RELAY1..RELAY8]
 
+[GET]
 /api/status
 [Returns a Json Object with the status of the available relays]
+
+[POST] - Include Payload as sample below
+/api/status
+
+[
+  {
+    "Relay": 1,
+    "Name": "Pump",
+    "State": 0
+  },
+  {
+    "Relay": 2,
+    "Name": "UV Light",
+    "State": 0
+  },
+  {
+    "Relay": 3,
+    "Name": "Skimmer",
+    "State": 0
+  }
+]

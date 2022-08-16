@@ -59,28 +59,27 @@ def connect_to_network():
 
         print('ip = ' + status[0])
         
-def build_button_controls(response):
+def build_display_grid(response):
     
     global relay_names
     
-    #buttonTemplate = "<a href='/RELAY'><button class='button buttonSTATE'>Turn NAME STATE</button></a>"
-    buttonTemplate = """<form action="" method="post">
-                            <input type="submit" name="RELAY" value="Turn NAME STATE" class="button buttonSTATE" />
-                        </form>"""
+    template = "<tr><td>NAME</td><td class=\"STATE\">STATE</td></tr>"
         
-    html = ""
+    html = "<table class=\"styled-table\"><tr><th>Name</th><th>Status</th></tr>"
             
     for i in range(len(relay_names)):
         if relay_names[i-1] != "":
-            tempButton = buttonTemplate.replace("RELAY", "RELAY" + str(i))
-            tempButton = tempButton.replace("NAME", relay_names[i-1])
+            tempRow = template.replace("NAME", relay_names[i-1])
             if relay_state[i-1] == 1:
-                html = html + tempButton.replace("STATE", "Off")
+                tempRow = tempRow.replace("STATE", "On")
             else:
-                html = html + tempButton.replace("STATE", "On")
+                tempRow = tempRow.replace("STATE", "Off")
+            html += tempRow
+    
+    html += '</table>'
    
     # inject the html buttons
-    return response.replace("CMDS", html) 
+    return response.replace("GRID", html) 
 
 def invert_state(currentstate):
     if currentstate == 0:
@@ -124,8 +123,8 @@ def handle_get(request, writer):
         response = f.read()
         f.close()
         
-        # need to add our button commands here.
-        response = build_button_controls(response)
+        # need to add our status grid here.
+        response = build_display_grid(response)
         writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
         
 def handle_post(request, reader, writer):

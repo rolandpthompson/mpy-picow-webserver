@@ -14,7 +14,7 @@ Authorization: Basic user:pass
   {
     "Relay": 2,
     "Name": "Pump",
-    "State": 0
+    "State": 1
   }
 ]
 
