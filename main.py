@@ -1,21 +1,26 @@
 import network
 import socket
 import time
+import json
 
 from machine import Pin
 import uasyncio as asyncio
+
 from secrets import secrets
 from netconfig import netconfig
 from pinnames import pinnames
 
-# relay pins [R1 .. R8]
+# relay pins [RELAY1 .. RELAY8]
 relay_pins = list((Pin(21, Pin.OUT, value=0), Pin(20, Pin.OUT, value=0), Pin(19, Pin.OUT, value=0), Pin(18, Pin.OUT, value=0), Pin(17, Pin.OUT, value=0), Pin(16, Pin.OUT, value=0), Pin(15, Pin.OUT, value=0), Pin(14, Pin.OUT, value=0)))
 
-# initial relay states array storage  [R1 .. R8]
+# initial relay states array storage  [RELAY1 .. RELAY8]
 relay_state = list((0,0,0,0,0,0,0,0))
 
-# default relay names - to be populated when started  [R1 .. R8]
+# default relay names - to be populated when started  [RELAY1 .. RELAY8]
 relay_names = list(("", "", "", "", "", "", "", ""))
+
+# relay commands
+relay_commands = list((0, 0, 0, 0, 0, 0, 0, 0))
 
 # heartbeat indicator
 onboard = Pin("LED", Pin.OUT, value=0)
@@ -24,6 +29,7 @@ ssid = secrets["ssid"]
 password = secrets["pwd"] 
 wlan = network.WLAN(network.STA_IF)
 base64Encoded = netconfig["baseEncoding"]
+response = ""
 
 def connect_to_network():
     wlan.active(True)
@@ -58,14 +64,14 @@ def build_button_controls(response):
     
     #buttonTemplate = "<a href='/RELAY'><button class='button buttonSTATE'>Turn NAME STATE</button></a>"
     buttonTemplate = """<form action="" method="post">
-                            <input type="submit" name="RELAY" value="RELAY" class="button buttonSTATE" />
+                            <input type="submit" name="RELAY" value="Turn NAME STATE" class="button buttonSTATE" />
                         </form>"""
         
     html = ""
             
     for i in range(len(relay_names)):
         if relay_names[i-1] != "":
-            tempButton = buttonTemplate.replace("RELAY", "R" + str(i))
+            tempButton = buttonTemplate.replace("RELAY", "RELAY" + str(i))
             tempButton = tempButton.replace("NAME", relay_names[i-1])
             if relay_state[i-1] == 1:
                 html = html + tempButton.replace("STATE", "Off")
@@ -80,16 +86,116 @@ def invert_state(currentstate):
         return 1
     else:
         return 0
+    
+def check_authorised(request, writer):
+    if request.find(base64Encoded) > 0:
+        return True
+    else:
+        # not authorised...
+        writer.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="Secure"\r\nContent-Type: text/html\r\n\r\n') # Bad Request
+        return False
+    
+def handle_get(request, writer):
+
+    global relay_state, relay_pins, relay_names, response         
+            
+    print("GET Request:", request)
+    css = request.find('.css')
+    
+    # getting status (api)
+    if request.find("/api/status") > 0:
+        
+        if check_authorised(request, writer):
+            
+            data = []
+            # loop though our relays to get the state
+            for i in range(len(relay_names)):
+                if relay_names[i-1] != "":
+                    data.append({'Relay': i, 'Name': relay_names[i-1],'State': relay_state[i-1]})
+            
+            response = json.dumps(data)
+          
+            writer.write('HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n') # OK
+    
+    # handle if a CSS request
+    elif css > 0:
+        requestedfile = request[6:css+4]
+        f = open(requestedfile)
+        response = f.read()
+        f.close()
+        
+        writer.write('HTTP/1.1 200 OK\r\nContent-type: text/css\r\n\r\n')
+    else: # else standard html
+        requestedfile = "webroot/index.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
+        f = open(requestedfile)
+        response = f.read()
+        f.close()
+        
+        # need to add our button commands here.
+        response = build_button_controls(response)
+        writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
+        
+def handle_post(request, writer):
+    
+    global relay_state, relay_pins, relay_names, response
+    
+    print("POST Request:", request)
+
+    # authorised?
+    if check_authorised(request, writer):
+
+        # what are we doing
+        if request.find("/api/status") > 0: # setting the status using json, then return the pin states
+            data = {}
+            # loop though our relays to get the state
+            for i in range(len(relay_names)):
+                if relay_names[i-1] != "":
+                    data[relay_names[i-1]] = bool(relay_state[i-1])
+
+            response = json.dumps(data)
+           
+            writer.write('HTTP/1.1 200 OK\r\nContent-type: application/json\r\n\r\n') # OK
+
+        elif request.find("/api/toggle") > 0:
+            # loop though our command and toggle relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 19:
+                    relay_state[i-1] = invert_state(relay_state[i-1])
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
+            
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+            
+        elif request.find("/api/enable") > 0:
+            # loop though our command and enable relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 19:
+                    relay_state[i-1] = 1
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
+                    
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK                    
+                    
+        elif request.find("/api/disable") > 0:
+            # loop though our command and disable relay
+            for i in range(len(relay_names)):
+                if relay_commands[i-1] == 20:
+                    relay_state[i-1] = 0
+                    relay_pins[i-1].value(relay_state[i-1])
+                    break
+
+            writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
+
+        else:
+            writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
 
 async def serve_client(reader, writer):
+    
+    global response, relay_commands
+    
     print("Client connected")
     line = await reader.readline()
     request_line = line;
-
-    # We are not interested in HTTP request headers, skip them
-    #while await reader.readline() != b"\r\n":
-    #    #request_line += reader.readline()
-    #    pass
 
     # read all the headers - as we want to check for basic auth (api)
     while line != b"\r\n":
@@ -101,84 +207,20 @@ async def serve_client(reader, writer):
     print(str(request))
     
     # items to look our for on our request
-    relay_commands = list((request.find("R1"), request.find("R2"), request.find("R3"), request.find("R4"), request.find("R5"), request.find("R6"), request.find("R7"), request.find("R8")))
-    css = request.find('.css') # for handling css files
+    relay_commands = list((request.find("RELAY1"), request.find("RELAY2"), request.find("RELAY3"), request.find("RELAY4"), request.find("RELAY5"), request.find("RELAY6"), request.find("RELAY7"), request.find("RELAY8")))
     
     # what type of action are we doing
     isget = request.find("GET ") > 0;
     ispost = request.find("POST ") > 0;
 
-    global relay_state, relay_pins, relay_names
-    
+    global response
+
     # clear response
     response = ""
     if isget:
-        
-        print("GET Request:", request)        
-        
-        # handle if a CSS request
-        if css > 0:
-            requestedfile = request[6:css+4]
-            f = open(requestedfile)
-            response = f.read()
-            f.close()
-            
-            writer.write('HTTP/1.1 200 OK\r\nContent-type: text/css\r\n\r\n')
-        else: # else standard html
-            requestedfile = "webroot/index.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
-            f = open(requestedfile)
-            response = f.read()
-            f.close()
-            
-            # need to add our button commands here.
-            response = build_button_controls(response)
-            writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
-
+        handle_get(request, writer)
     elif ispost:
-        
-        print("POST Request:", request)
-        
-        # authorised?
-        if request.find(base64Encoded) > 0:
-            
-            # what are we doing
-            
-            # toggle
-            if request.find("/api/toggle") > 0:
-                # loop though our command and toggle relay
-                for i in range(len(relay_names)):
-                    if relay_commands[i-1] == 19:
-                        relay_state[i-1] = invert_state(relay_state[i-1])
-                        relay_pins[i-1].value(relay_state[i-1])
-                        break
-                
-                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
-                
-            elif request.find("/api/enable") > 0:
-                # loop though our command and enable relay
-                for i in range(len(relay_names)):
-                    if relay_commands[i-1] == 19:
-                        relay_state[i-1] = 1
-                        relay_pins[i-1].value(relay_state[i-1])
-                        break
-                        
-                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK                    
-                        
-            elif request.find("/api/disable") > 0:
-                # loop though our command and disable relay
-                for i in range(len(relay_names)):
-                    if relay_commands[i-1] == 20:
-                        relay_state[i-1] = 0
-                        relay_pins[i-1].value(relay_state[i-1])
-                        break
-            
-                writer.write('HTTP/1.1 204 No Content\r\n\r\n') # no content response - OK
-            
-            else:
-                writer.write('HTTP/1.1 400 Bad Request\r\n\r\n') # Bad Request
-        else:
-            # not authorised...
-            writer.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="Secure"\r\nContent-Type: text/html\r\n\r\n') # Bad Request
+        handle_post(request, writer)       
 
     if response != "":
         writer.write(response)

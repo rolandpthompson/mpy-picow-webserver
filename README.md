@@ -26,10 +26,16 @@ secrets = {
         "pwd": "your wifi password
     }
     
-* Endpoints
+* API Endpoints
+
+Require base authentication
+**All** require POST
 
 /api/toggle/[R1..R8]
 
 /api/enable/[R1..R8]
 
 /api/disable/[R1..R8]
+
+/api/status
+[Returns a Json Object with the status of the available relays]
