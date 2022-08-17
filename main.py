@@ -5,7 +5,6 @@ import json
 
 from machine import Pin
 import uasyncio as asyncio
-
 from secrets import secrets
 from netconfig import netconfig
 from pinnames import pinnames
@@ -101,7 +100,7 @@ def handle_get(request, writer):
     global relay_state, relay_pins, relay_names, response         
     css = request.find('.css')
     js = request.find('.js')
-    test = request.find('/test')
+    control = request.find('/control')
     
     # getting status (api)
     if request.find("/api/status") > 0:
@@ -127,15 +126,15 @@ def handle_get(request, writer):
         
         writer.write('HTTP/1.1 200 OK\r\nContent-type: text/js\r\n\r\n')
     
-    elif test > 0:
-        requestedfile = "webroot/test.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
-        f = open(requestedfile)
-        response = f.read()
-        f.close()
+    elif control > 0:
         
-        # need to add our status grid here.
-        response = build_display_grid(response)
-        writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')     
+        # authorised?
+        if check_authorised(request, writer):
+            requestedfile = "webroot/control.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
+            f = open(requestedfile)
+            response = f.read()
+            f.close()
+            writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')     
      
     else: # else standard html
         requestedfile = "webroot/index.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
