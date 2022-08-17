@@ -100,6 +100,8 @@ def handle_get(request, writer):
 
     global relay_state, relay_pins, relay_names, response         
     css = request.find('.css')
+    js = request.find('.js')
+    test = request.find('/test')
     
     # getting status (api)
     if request.find("/api/status") > 0:
@@ -117,6 +119,24 @@ def handle_get(request, writer):
         f.close()
         
         writer.write('HTTP/1.1 200 OK\r\nContent-type: text/css\r\n\r\n')
+    elif js > 0:
+        requestedfile = request[6:js+3]
+        f = open(requestedfile)
+        response = f.read()
+        f.close()
+        
+        writer.write('HTTP/1.1 200 OK\r\nContent-type: text/js\r\n\r\n')
+    
+    elif test > 0:
+        requestedfile = "webroot/test.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
+        f = open(requestedfile)
+        response = f.read()
+        f.close()
+        
+        # need to add our status grid here.
+        response = build_display_grid(response)
+        writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')     
+     
     else: # else standard html
         requestedfile = "webroot/index.htm" # TODO: Maybe read this file once at startup and store so we dont need to read everytime..
         f = open(requestedfile)
