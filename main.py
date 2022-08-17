@@ -2,9 +2,12 @@ import network
 import socket
 import time
 import json
+import rp2
+import ubinascii
 
 from machine import Pin
 import uasyncio as asyncio
+
 from secrets import secrets
 from netconfig import netconfig
 from pinnames import pinnames
@@ -30,8 +33,13 @@ wlan = network.WLAN(network.STA_IF)
 base64Encoded = netconfig["baseEncoding"]
 response = ""
 payload = ""
+boot = time.time()
 
 def connect_to_network():
+    
+    if netconfig["wifiCountry"] != '':
+        rp2.country(netconfig["wifiCountry"])
+    
     wlan.active(True)
     
     # use dhcp or a static address
@@ -58,9 +66,9 @@ def connect_to_network():
 
         print('ip = ' + status[0])
         
-def build_display_grid(response):
+def build_display(response):
     
-    global relay_names
+    global relay_names, wlan, boot
     
     template = "<tr><td>NAME</td><td class=\"STATE\">STATE</td></tr>"
         
@@ -76,9 +84,28 @@ def build_display_grid(response):
             html += tempRow
     
     html += '</table>'
+    
+    response = response.replace("[GRID]", html)
+    
+    response = response.replace("[SSID]", wlan.config('essid'))
+    response = response.replace("[CHANNEL]", str(wlan.config('channel')))
+    mac = ubinascii.hexlify(network.WLAN().config('mac'),':').decode()
+    response = response.replace("[MAC]", mac)
    
-    # inject the html buttons
-    return response.replace("GRID", html) 
+    response = response.replace("[BOOT]", str(boot))
+    end = time.time()
+    total_seconds = end-boot
+    # convert seconds to hours, minutes, and seconds
+    hours = total_seconds // 3600  # the // is "floor division" which avoids fractions
+    leftover = total_seconds % 3600
+    minutes = leftover // 60
+    seconds = leftover % 60
+    runtime = "Hours: " + str(hours) + ", Mins: " + str(minutes) + ", Secs: " + str(seconds)
+    response = response.replace("[RUNTIME]", runtime)
+
+
+    # inject the html 
+    return response
 
 def invert_state(currentstate):
     if currentstate == 0:
@@ -100,7 +127,9 @@ def handle_get(request, writer):
     global relay_state, relay_pins, relay_names, response         
     css = request.find('.css')
     js = request.find('.js')
-    control = request.find('/control')
+    control = request.find('GET /control')
+    
+    #print(request)
     
     # getting status (api)
     if request.find("/api/status") > 0:
@@ -143,7 +172,7 @@ def handle_get(request, writer):
         f.close()
         
         # need to add our status grid here.
-        response = build_display_grid(response)
+        response = build_display(response)
         writer.write('HTTP/1.1 200 OK\r\nContent-type: text/html\r\n\r\n')
         
 def handle_post(request, reader, writer):
