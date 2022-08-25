@@ -1,7 +1,7 @@
 async function getPins() {
     
 
-    let url = windows.location.origin + '/api/status';
+    let url = window.location.origin + '/api/status';
     try {
         let res = await fetch(url, {method:'GET', headers: { credentials: 'include' }});
         return await res.json();
@@ -42,7 +42,7 @@ async function renderPins() {
 
 function button_click(control, state)
 {
-    let url = windows.location.origin + '/api/';
+    let url = window.location.origin + '/api/';
     
     if (state == -1)
         url += 'toggle/RELAY' + control;
